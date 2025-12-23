@@ -1,3 +1,4 @@
+-- Basic table
 CREATE TABLE employees (
     id INT PRIMARY KEY AUTO_INCREMENT,
     first_name VARCHAR(50),
@@ -5,4 +6,24 @@ CREATE TABLE employees (
     email VARCHAR(100),
     salary DECIMAL(10, 2),
     hire_date DATE
+);
+
+-- Table with more features
+CREATE TABLE products (
+    product_id INT PRIMARY KEY AUTO_INCREMENT,
+    product_name VARCHAR(100) NOT NULL,
+    category VARCHAR(50),
+    price DECIMAL(8, 2) NOT NULL,
+    stock_quantity INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Table with foreign key (relationship)
+CREATE TABLE orders (
+    order_id INT PRIMARY KEY AUTO_INCREMENT,
+    employee_id INT,
+    order_date DATE,
+    total_amount DECIMAL(10, 2),
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
 );
