@@ -1,4 +1,27 @@
--- Basic table
+1. Configure connectivity:
+    * VPC: Select your VPC
+    * Subnet group: Create or select existing
+    * Public accessibility: For testing, enable it (disable in production)
+2. Configure additional settings:
+    * Database name: testdb
+    * Backup retention: 7 days
+    * Backup window: Specify time
+    * Enable encryption: Yes
+3. Click "Create database"
+Part 2: Modify Instance
+1. Once instance shows "available" status
+2. Click instance identifier
+3. Modify settings like instance class, storage, backup retention
+4. Apply changes immediately or during maintenance window
+Part 3: Monitor Performance
+1. Navigate to CloudWatch metrics section
+2. Observe CPU utilization, database connections, storage space
+3. Review database logs in Logs & events tab
+
+
+_______________________________________
+
+-- Basic table--
 CREATE TABLE employees (
     id INT PRIMARY KEY AUTO_INCREMENT,
     first_name VARCHAR(50),
@@ -8,7 +31,7 @@ CREATE TABLE employees (
     hire_date DATE
 );
 
--- Table with more features
+-- Table with more features--
 CREATE TABLE products (
     product_id INT PRIMARY KEY AUTO_INCREMENT,
     product_name VARCHAR(100) NOT NULL,
