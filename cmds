@@ -6,3 +6,9 @@ aws rds describe-db-instances \
 aws rds describe-db-parameter-groups \
     --query 'DBParameterGroups[*].[DBParameterGroupName,DBParameterGroupFamily,Description]' \
     --output table
+
+aws rds describe-db-instances \
+    --db-instance-identifier mydb-instance \
+    --query 'DBInstances[0].MultiAZ' \
+    --output text
+
