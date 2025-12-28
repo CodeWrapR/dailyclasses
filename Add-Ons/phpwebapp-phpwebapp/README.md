@@ -241,12 +241,6 @@ if(isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO
 ```
 - restart the httpd server: `sudo systemctl reload httpd`
 
-For a more visual walkthrough, check out my YouTube video, linked below
+  
+## Thank you
 
-First Video:
-
-[![WordPress Deployment Video](https://img.youtube.com/vi/HpzWs5QjPYo/0.jpg)](https://youtu.be/HpzWs5QjPYo)
-
-Second Video:
-
-[![WordPress Deployment Video](https://img.youtube.com/vi/67km4AFamY4/0.jpg)](https://youtu.be/67km4AFamY4)
