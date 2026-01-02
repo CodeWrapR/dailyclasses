@@ -1,0 +1,697 @@
+# CloudFormation Labs Tutorial Series
+
+## Prerequisites
+- AWS account with appropriate permissions
+- AWS CLI installed and configured
+- Text editor for writing YAML/JSON
+- Basic understanding of AWS resources
+
+---
+
+## Lab 1: Your First CloudFormation Stack (Basic)
+
+### Objective
+Create a simple S3 bucket using CloudFormation.
+
+### Instructions
+
+1. Create a file named `lab1-s3-bucket.yaml`:
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lab 1: Simple S3 Bucket'
+
+Resources:
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: my-cfn-bucket-12345  # Must be globally unique
+      VersioningConfiguration:
+        Status: Enabled
+
+Outputs:
+  BucketName:
+    Description: Name of the S3 bucket
+    Value: !Ref MyS3Bucket
+  BucketArn:
+    Description: ARN of the S3 bucket
+    Value: !GetAtt MyS3Bucket.Arn
+```
+
+2. Deploy the stack:
+```bash
+aws cloudformation create-stack \
+  --stack-name lab1-s3-stack \
+  --template-body file://lab1-s3-bucket.yaml
+```
+
+3. Monitor the stack creation:
+```bash
+aws cloudformation describe-stacks \
+  --stack-name lab1-s3-stack \
+  --query 'Stacks[0].StackStatus'
+```
+
+4. View outputs:
+```bash
+aws cloudformation describe-stacks \
+  --stack-name lab1-s3-stack \
+  --query 'Stacks[0].Outputs'
+```
+
+5. Clean up:
+```bash
+aws cloudformation delete-stack --stack-name lab1-s3-stack
+```
+
+### Key Concepts
+- **AWSTemplateFormatVersion**: Template format specification
+- **Resources**: AWS resources to create
+- **Outputs**: Return values from the stack
+- **!Ref**: Reference another resource
+- **!GetAtt**: Get attribute of a resource
+
+---
+
+## Lab 2: Parameters and Conditions (Basic)
+
+### Objective
+Create a reusable VPC template with parameters and conditional logic.
+
+### Instructions
+
+1. Create `lab2-vpc.yaml`:
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lab 2: VPC with Parameters and Conditions'
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+  
+  EnablePublicSubnet:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Whether to create a public subnet
+
+Conditions:
+  IsProduction: !Equals [!Ref EnvironmentName, 'prod']
+  CreatePublicSubnet: !Equals [!Ref EnablePublicSubnet, 'true']
+
+Resources:
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-vpc'
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Condition: CreatePublicSubnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-public-subnet'
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Condition: CreatePublicSubnet
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-igw'
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Condition: CreatePublicSubnet
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref InternetGateway
+
+Outputs:
+  VpcId:
+    Value: !Ref MyVPC
+    Description: VPC ID
+  
+  PublicSubnetId:
+    Condition: CreatePublicSubnet
+    Value: !Ref PublicSubnet
+    Description: Public Subnet ID
+  
+  Environment:
+    Value: !Ref EnvironmentName
+    Description: Environment name
+```
+
+2. Deploy with parameters:
+```bash
+aws cloudformation create-stack \
+  --stack-name lab2-vpc-prod \
+  --template-body file://lab2-vpc.yaml \
+  --parameters ParameterKey=EnvironmentName,ParameterValue=prod \
+               ParameterKey=EnablePublicSubnet,ParameterValue=true
+```
+
+### Key Concepts
+- **Parameters**: Input values for the template
+- **Conditions**: Conditional logic for creating resources
+- **!Sub**: String substitution
+- **!Select**: Select from a list
+- **!GetAZs**: Get availability zones
+
+---
+
+## Lab 3: Security Groups and Network Configuration (Basic)
+
+### Objective
+Create an EC2 instance with a security group and proper networking.
+
+### Instructions
+
+1. Create `lab3-ec2-setup.yaml`:
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lab 3: EC2 Instance with Security Group'
+
+Parameters:
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: EC2 key pair for SSH access
+  
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Description: EC2 instance type
+
+Resources:
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for web server
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: SSH access
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP access
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS access
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c55b159cbfafe1f0  # Amazon Linux 2 (update for your region)
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyPairName
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds:
+        - !Ref WebSecurityGroup
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "<h1>Hello from $(hostname -f)</h1>" > /var/www/html/index.html
+
+Outputs:
+  PublicIP:
+    Value: !GetAtt EC2Instance.PublicIp
+    Description: Public IP of EC2 instance
+  
+  WebURL:
+    Value: !Sub 'http://${EC2Instance.PublicIp}'
+    Description: Web server URL
+  
+  InstanceId:
+    Value: !Ref EC2Instance
+    Description: EC2 instance ID
+```
+
+2. Deploy (replace with your key pair):
+```bash
+aws cloudformation create-stack \
+  --stack-name lab3-ec2-stack \
+  --template-body file://lab3-ec2-setup.yaml \
+  --parameters ParameterKey=KeyPairName,ParameterValue=your-key-pair
+```
+
+### Key Concepts
+- **Security Groups**: Firewall rules for resources
+- **Routing Tables**: Network routing configuration
+- **UserData**: Script execution on instance startup
+- **DependsOn**: Explicit resource dependencies
+
+---
+
+## Lab 4: RDS Database with Outputs (Intermediate)
+
+### Objective
+Create an RDS MySQL database with proper security configuration.
+
+### Instructions
+
+1. Create `lab4-rds-database.yaml`:
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lab 4: RDS MySQL Database'
+
+Parameters:
+  DBName:
+    Type: String
+    Default: myappdb
+    Description: Database name
+  
+  DBUsername:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    MaxLength: 16
+    Description: Database admin username
+  
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+    Description: Database password (8+ characters)
+  
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues:
+      - db.t3.micro
+      - db.t3.small
+      - db.t3.medium
+    Description: Database instance type
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: db-subnet-group
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 10.0.0.0/16
+          Description: MySQL access from VPC
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub '${AWS::StackName}-db'
+      DBName: !Ref DBName
+      Engine: mysql
+      EngineVersion: '8.0.35'
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: 20
+      StorageType: gp2
+      StorageEncrypted: true
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '03:00-04:00'
+      PreferredMaintenanceWindow: 'mon:04:00-mon:05:00'
+      EnableCloudwatchLogsExports:
+        - error
+        - general
+        - slowquery
+      MultiAZ: false
+
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+
+Outputs:
+  DBEndpoint:
+    Description: RDS database endpoint
+    Value: !GetAtt RDSInstance.Endpoint.Address
+  
+  DBPort:
+    Description: Database port
+    Value: !GetAtt RDSInstance.Endpoint.Port
+  
+  DBName:
+    Description: Database name
+    Value: !Ref DBName
+  
+  ConnectionString:
+    Description: MySQL connection string
+    Value: !Sub 'mysql -h ${RDSInstance.Endpoint.Address} -u ${DBUsername} -p ${DBName}'
+```
+
+2. Deploy with secure parameters:
+```bash
+aws cloudformation create-stack \
+  --stack-name lab4-rds-stack \
+  --template-body file://lab4-rds-database.yaml \
+  --parameters ParameterKey=DBUsername,ParameterValue=admin \
+               ParameterKey=DBPassword,ParameterValue=MySecurePass123
+```
+
+### Key Concepts
+- **DeletionPolicy**: What happens to resources when stack is deleted
+- **NoEcho**: Hide parameter values in console
+- **GetAtt for complex values**: Retrieve endpoint details
+- **CloudWatch Logs**: Database logging configuration
+
+---
+
+## Lab 5: Stack with Multiple Resources and Tags (Intermediate)
+
+### Objective
+Create a complete web application stack with multiple resources and proper tagging.
+
+### Instructions
+
+1. Create `lab5-complete-stack.yaml`:
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lab 5: Complete Web Application Stack'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: myproject
+    Description: Project name for resource tagging
+  
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+Mappings:
+  EnvironmentConfig:
+    dev:
+      InstanceType: t3.micro
+      DBInstanceClass: db.t3.micro
+    staging:
+      InstanceType: t3.small
+      DBInstanceClass: db.t3.small
+    prod:
+      InstanceType: t3.medium
+      DBInstanceClass: db.t3.medium
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-vpc'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-${Environment}-public'
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${Environment}-${AWS::AccountId}'
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub 'Security group for ${ProjectName}'
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-sg'
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Origins:
+          - DomainName: !GetAtt S3Bucket.RegionalDomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OriginAccessIdentity}'
+        DefaultCacheBehavior:
+          AllowedMethods: [GET, HEAD]
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          Compress: true
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+        ViewerProtocolPolicy: redirect-to-https
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  OriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub 'OAI for ${ProjectName}'
+
+Outputs:
+  S3BucketName:
+    Value: !Ref S3Bucket
+    Description: S3 bucket name
+  
+  CloudFrontURL:
+    Value: !GetAtt CloudFrontDistribution.DomainName
+    Description: CloudFront distribution URL
+  
+  VPCId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub '${ProjectName}-VpcId'
+    Description: VPC ID (exported for cross-stack reference)
+```
+
+2. Deploy:
+```bash
+aws cloudformation create-stack \
+  --stack-name lab5-app-stack \
+  --template-body file://lab5-complete-stack.yaml \
+  --parameters ParameterKey=ProjectName,ParameterValue=myapp \
+               ParameterKey=Environment,ParameterValue=dev
+```
+
+### Key Concepts
+- **Mappings**: Configuration values for different scenarios
+- **Tags**: Organizing and managing resources
+- **Exports**: Cross-stack references
+- **CloudFront**: Content delivery network integration
+
+---
+
+## Lab 6: Stack Updates and Drift Detection (Intermediate)
+
+### Objective
+Learn how to update stacks and detect configuration drift.
+
+### Instructions
+
+1. Start with Lab 1's S3 bucket stack
+
+2. Update the stack with new properties:
+```bash
+# Modify lab1-s3-bucket.yaml to add:
+# Tags:
+#   - Key: Environment
+#     Value: Production
+
+aws cloudformation update-stack \
+  --stack-name lab1-s3-stack \
+  --template-body file://lab1-s3-bucket.yaml
+```
+
+3. Detect drift (manual changes):
+```bash
+# First, manually modify the bucket in the console, then:
+aws cloudformation detect-stack-drift \
+  --stack-name lab1-s3-stack
+
+# Check drift status
+aws cloudformation describe-stack-drift-detection-status \
+  --stack-drift-detection-id <detection-id-from-above>
+```
+
+4. View drift details:
+```bash
+aws cloudformation describe-stack-resource-drifts \
+  --stack-name lab1-s3-stack
+```
+
+### Key Concepts
+- **Stack Updates**: Modifying existing stacks
+- **Drift Detection**: Finding manual changes to resources
+- **Change Sets**: Preview changes before applying
+
+---
+
+## Best Practices Summary
+
+- **Use Parameters** for reusable templates
+- **Add Outputs** to share important values
+- **Implement Conditions** for flexibility
+- **Tag Everything** for organization and cost tracking
+- **Use Descriptive Names** for resources
+- **Implement Security** with proper security groups and encryption
+- **Document Templates** with descriptions
+- **Test Templates** before production use
+- **Use Change Sets** before updating production stacks
+- **Monitor Stack Events** during creation/updates
+- **Regular Backups** for stateful resources
+
+---
+
+## Cleanup Commands
+
+```bash
+# Delete a stack
+aws cloudformation delete-stack --stack-name stack-name
+
+# List all stacks
+aws cloudformation list-stacks --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE
+
+# Describe a stack
+aws cloudformation describe-stacks --stack-name stack-name
+
+# Get stack events
+aws cloudformation describe-stack-events --stack-name stack-name
+```
+
+---
+
+## Next Steps
+- Explore nested stacks for complex applications
+- Learn about AWS::CloudFormation::CustomResource
+- Implement CI/CD pipelines with CloudFormation
+- Study the CloudFormation registry for custom resources
+- Practice with AWS Service Catalog
