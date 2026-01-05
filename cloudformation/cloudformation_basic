@@ -657,17 +657,17 @@ aws cloudformation describe-stack-resource-drifts \
 
 ## Best Practices Summary
 
-- **Use Parameters** for reusable templates
-- **Add Outputs** to share important values
-- **Implement Conditions** for flexibility
-- **Tag Everything** for organization and cost tracking
-- **Use Descriptive Names** for resources
-- **Implement Security** with proper security groups and encryption
-- **Document Templates** with descriptions
-- **Test Templates** before production use
-- **Use Change Sets** before updating production stacks
-- **Monitor Stack Events** during creation/updates
-- **Regular Backups** for stateful resources
+- Use Parameters for reusable templates
+- Add Outputs to share important values
+- Implement Conditions for flexibility
+- Tag Everything for organization and cost tracking
+- Use Descriptive Names for resources
+- Implement Security with proper security groups and encryption
+- Document Templates with descriptions
+- Test Templates before production use
+- Use Change Sets before updating production stacks
+- Monitor Stack Events during creation/updates
+- Regular Backups for stateful resources
 
 ---
 
