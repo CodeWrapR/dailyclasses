@@ -2,7 +2,7 @@
 
 ## Overview
 
-Deployment strategies determine how you roll out new versions of applications with minimal downtime and risk. This guide covers manual setup using AWS Console without Terraform or CloudFormation.
+Deployment strategies determine how you roll out new versions of applications with minimal downtime and risk. 
 
 ---
 
